@@ -1,0 +1,160 @@
+## clear workspace
+rm(list = ls()) 
+
+# source("../process.R")
+
+options(download.file.method="libcurl")
+
+## install packages
+if (!require(pacman)) {install.packages("pacman")}
+pacman::p_load('ggplot2',         # plotting
+               'ggsignif',        # plotting significance bars
+               'lme4',            # functions for fitting linear regression models
+               'ggforce',         # make ggplot even fancier
+               'ggpubr',          # arrange plots in a grid, if needed
+               'ltm',             # probably not using..
+               'tidyr',           # tools for cleaning messy data
+               'stringr',         # perform string substitutions easily
+               'assertthat',      # allows me to check whether a variable is a string, with is.string
+               'lsmeans',         # contrast analysis for regression models
+               'stats',           # use function to adjust for multiple comparisons
+               'filesstrings',    # create and move files
+               'simr',            # power analysis for mixed models
+               'compute.es',      # effect size package
+               'effsize',         # another effect size package
+               'pwr',             # package for power calculation
+               'nlme',            # get p values for mixed effect model
+               'DescTools',       # get Cramer's V
+               'Hmisc'
+)
+
+## ================================================================================================================
+##                                                  PRE-PROCESSING                 
+## ================================================================================================================
+
+## read in data: 
+# if importing from Qualtrics: (i) export data as numeric values, and (ii) delete rows 2 and 3 of the .csv file.
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #set working directory to current directory
+d <- read.csv('pre_study.csv')
+
+## explore dataframe: 
+dim(d) # will provide dimensions of the dataframe by row [1] and column [2]
+colnames(d) # will provide all column names
+summary(d)
+
+## perform attention exclusions: 
+# this will remove responses from the dataframe that failed attention checks (i.e., "1" or "2")
+d <- subset(d, (d$att1 == 2 & d$att2 == 2))
+dim(d) # number of participants should decrease after attention exclusions
+n_final <- dim(d)[1]; n_final
+
+## remove unused columns according to condition
+d_cleaned <- d[c(21:24)]
+
+## get mean age and gender:
+mean_age = mean(as.numeric(d$age), na.rm = TRUE); mean_age # removing NAs from the dataframe before computing mean 
+gender = table(d$gender)[2]/sum(table(d$gender)); gender
+
+
+## ================================================================================================================
+##                                                    SUBSETTING                 
+## ================================================================================================================
+
+## define new data frame to extract pre-processed data into:
+d_subset <- array(dim=c(n_final, 4))
+colnames(d_subset) <- c('fear', 'safety', 'familiarity', 'risk')
+d_subset <- as.data.frame(d_subset, stringsAsFactors=FALSE) 
+
+## extract good data from the middle part of raw data in AV:
+for(i in 1:n_final) {
+    curr <- d_cleaned[i,1:4][!is.na(d[i,1:4])] # for a given row, get only the non-NA values
+    d_subset[i,1:4] <- as.numeric(curr[curr!= ""]) # and only the non-empty values
+}
+
+## ================================================================================================================
+##                                                  DATA ANALYSIS        
+## ================================================================================================================
+
+### I am more afraid of riding in an autonomous vehicle
+mean(d_subset$fear)
+sd(d_subset$fear)
+t_fear <- t.test(d_subset$fear, mu=50); t_fear
+
+### I believe that HDVs are safer
+mean(d_subset$safety)
+sd(d_subset$safety)
+t_safety <- t.test(d_subset$safety, mu=50); t_safety
+
+### I am more familiar with HDVs
+mean(d_subset$familiarity)
+sd(d_subset$familiarity)
+t_familiarity <- t.test(d_subset$familiarity, mu=50); t_familiarity
+
+### It would be more risky to ride in an AV
+mean(d_subset$risk)
+sd(d_subset$risk)
+t_risk <- t.test(d_subset$risk, mu=50); t_risk
+
+## ================================================================================================================
+##                                                    PLOTS                 
+## ================================================================================================================
+
+# Reshape data for plotting
+d_plot <- array(dim=c(n_final*4, 2))
+colnames(d_plot) <- c('question', 'measure')
+d_plot <- as.data.frame(d_plot, stringsAsFactors=FALSE) 
+
+## extract good data from the middle part of raw data in AV:
+for(i in 1:n_final) {
+  curr_fear <- d_subset$fear[i]#$fear[!is.na(d_subset)$fear] # for a given row, get only the non-NA values
+  curr_safety <- d_subset$safety[i]
+  curr_familiarity <- d_subset$familiarity[i]
+  curr_risk <- d_subset$risk[i]
+  d_plot[i,2] <- curr_fear
+  d_plot[i,1] <- "Familiarity"
+  d_plot[n_final+i, 2] <- curr_safety
+  d_plot[n_final+i,1] <- "Fear"
+  d_plot[2*n_final+i, 2] <- curr_familiarity
+  d_plot[2*n_final+i,1] <- "Risk"
+  d_plot[3*n_final+i, 2] <- curr_risk
+  d_plot[3*n_final+i,1] <- "Safety"
+}
+
+t_names <- c("Fear", "Safety", "Familiarity", "Risk")
+
+## (1) Plot
+p1_1 <- ggplot(d_plot,aes(x=factor(question),y=measure)) +  
+  theme_bw() + coord_cartesian(ylim=c(1,110))+scale_y_continuous(breaks = scales::pretty_breaks(n = 3))+
+  geom_signif(y_position = c(105,105), comparisons = list(c(1, 1)), annotation="***", textsize = 6)+
+  geom_signif(y_position = c(105,105), comparisons = list(c(2, 2)), annotation="***", textsize = 6)+
+  geom_signif(y_position = c(105,105), comparisons = list(c(3, 3)), annotation="***", textsize = 6)+
+  geom_signif(y_position = c(105,105), comparisons = list(c(4, 4)), annotation="***", textsize = 6)+
+  coord_cartesian(ylim=c(1,125)) 
+#geom_signif(y_position = c(119,116), comparisons = list(c(3, 4)), annotation="***", textsize = 6)+
+
+p1_1 <- p1_1 + theme(text = element_text(size=20),panel.grid.major = element_blank(),panel.grid.minor = element_blank()) +
+  scale_x_discrete(labels=t_names) +
+  #ggtitle("Agreements with Statements") +
+  xlab ("Comparative Statement") + ylab ("Mean Agreement") +
+  theme_classic() +
+  theme(axis.text.x = element_text(size=15)) +
+  theme(axis.title = element_text(size=18)) +
+  theme(axis.text.y = element_text(size=14)) +
+  theme(plot.title = element_text(size=20, hjust=0.5)) +
+  geom_violin(width=0.9, alpha=0.38, size=0.75) +  
+  geom_sina(alpha=0.6, size=0.95, color = "#999999") +
+  stat_summary(fun.data = "mean_cl_boot", color = "black", 
+               size=0.4, 
+               position = position_dodge(width = 0.9)) +
+  stat_summary(fun.data = "mean_cl_boot", color = "black", 
+               position = position_dodge(width = 0.9),
+               geom="errorbar", width = 0.2)
+p1_1 <- p1_1+geom_hline(yintercept=50,linetype=2, color="gray")
+plot(p1_1)
+
+dev.new(width=11,height=6,noRStudioGD = TRUE)
+p1_1
+
+## ================================================================================================================
+##                                                  END OF ANALYSIS                 
+## ================================================================================================================
