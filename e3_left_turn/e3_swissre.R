@@ -150,6 +150,10 @@ cohen.d(vB_sue ~ cond_name, data = d_merged, paired = FALSE)
 sd(d_merged[d_merged$cond_name == "av",]$vB_sue)
 sd(d_merged[d_merged$cond_name == "human",]$vB_sue)
 
+#one-sided test
+vB_sue_T <- t.test(vB_sue ~ cond_name, data = d_merged, paired = FALSE, alternative='greater'); vB_sue_T
+cohen.d(vB_sue ~ cond_name, data = d_merged, paired = FALSE, alternative='greater')
+
 ## (3) VEHICLE B DEFECTIVE
 defective_T <- t.test(defec ~ cond_name, data = d_merged, paired = FALSE); defective_T
 cohen.d(defec ~ cond_name, data = d_merged, paired = FALSE)
